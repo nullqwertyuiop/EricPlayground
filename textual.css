@@ -163,6 +163,19 @@ Notification {
     background: $background;
     color: $text;
     height: auto;
+    border: wide $primary;
+}
+
+WarningBox {
+    background: yellow 80%;
+    color: auto;
+    border: none;
+}
+
+ErrorBox {
+    background: red 40%;
+    color: auto;
+    border: none;
 }
 
 ._margin-top {

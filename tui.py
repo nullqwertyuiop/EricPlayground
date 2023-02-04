@@ -1,8 +1,8 @@
 import dataclasses
 import inspect
 from contextvars import ContextVar
-from dataclasses import _MISSING_TYPE
-from typing import Callable, Coroutine, List, cast
+from dataclasses import _MISSING_TYPE  # noqa
+from typing import Callable, Coroutine, cast
 
 import kayaku
 import typing_extensions
@@ -12,18 +12,21 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
-from textual.events import Key
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widget import Widget
 from textual.widgets import Button, Footer, Header, Input, Static
 from typing_extensions import Self
 
+from util import type_cast
+
 __import__("model")
 
 CURRENT_SCREEN = ContextVar("CURRENT_SCREEN", default="")
 INSTALLED_SCREENS = ContextVar("INSTALLED_SCREENS", default=[])
 TUI_APP = ContextVar("TUI_APP")
+
+_T = typing_extensions.TypeVar("_T")
 
 _WELCOME_MD = """
 ## Eric 配置编辑器
@@ -96,15 +99,17 @@ class InputPair(Container):
 
 
 class InputField(Container):
-    data: str
+    data: str | _T
 
     def __init__(
-        self, classes: str, label: str, placeholder: str, description: str | Text = None
+        self, classes: str, label: str, placeholder: str, description: str | Text = None, *, typ: type[_T]
     ):
         super().__init__(classes=classes)
         self._field_label = label
         self._field_placeholder = placeholder
         self._field_description = description
+        self._field_typ = typ
+        self.data = ""
 
     def compose(self) -> ComposeResult:
         container = [
@@ -120,6 +125,22 @@ class InputField(Container):
     def on_input_changed(self, message: Input.Changed) -> None:
         self.data = message.value
 
+    def type_cast(self) -> _T:
+        try:
+            if not isinstance(self.data, str) or not self.data:
+                return
+            return type_cast(self.data, self._field_typ)
+        except NotImplementedError:
+            self.screen.mount(WarningBox(f"不支持的类型：{self._field_typ!r}"))
+        except ValueError:
+            self.screen.mount(ErrorBox(f"无法将 {self.data!r} 转换为 {self._field_typ.__name__!r}"))
+
+    def on_descendant_blur(self):
+        self.data = self.type_cast()
+
+    def on_input_submitted(self):
+        self.data = self.type_cast()
+
 
 class FrozenInput(Static):
     pass
@@ -130,7 +151,7 @@ class MutableInputPair(Container):
 
 
 class MutableInputField(Container):
-    data: list[str]
+    data: list[_T]
     _widgets: reactive[dict[str, Widget]] = reactive({}, layout=True)
     _input: str
 
@@ -139,13 +160,14 @@ class MutableInputField(Container):
         return f"{self._field_classes}"
 
     def __init__(
-        self, classes: str, label: str, placeholder: str, description: str | Text = None
+        self, classes: str, label: str, placeholder: str, description: str | Text = None, *, typ: type[_T]
     ):
         super().__init__(classes=classes)
         self._field_classes = classes
         self._field_label = label
         self._field_placeholder = placeholder
         self._field_description = description
+        self._field_typ = typ
         self.data = []
         self._input = ""
 
@@ -167,19 +189,27 @@ class MutableInputField(Container):
     def on_input_changed(self, message: Input.Changed) -> None:
         self._input = message.value
 
-    def on_button_pressed(self, event: Button.Pressed):
-        if not event.button.id or not event.button.id.startswith(self.button_id_prefix):
-            return
-        if event.button.id.startswith(f"{self.button_id_prefix}_remove"):
-            index = event.button.id.split("_")[-1]
-            if index in self._widgets:
-                self._widgets[index].remove()
-                del self._widgets[index]
-            return
+    def type_cast(self) -> _T:
+        try:
+            if not self._input:
+                return
+            return type_cast(self._input, self._field_typ)
+        except NotImplementedError:
+            self.screen.mount(WarningBox(f"不支持的类型：{self._field_typ!r}"))
+            raise
+        except ValueError:
+            self.screen.mount(ErrorBox(f"无法将 {self._input!r} 转换为 {self._field_typ.__name__!r}"))
+            raise
+
+    def append(self):
         if not self._input:
-            self.screen.mount(Notification("输入不能为空"))
+            self.screen.mount(ErrorBox("输入不能为空"))
             return
         index = len(self.data) + 1
+        try:
+            value = self.type_cast()
+        except (NotImplementedError, ValueError):
+            return
         self.mount(
             pair := MutableInputPair(
                 Static("", classes="label"),
@@ -190,12 +220,25 @@ class MutableInputField(Container):
                 classes=f"{self._field_classes}_data_{index} _margin-top",
             )
         )
-        self.data.append(self._input)
+        self.data.append(value)
         self._widgets[str(index)] = pair
         self._input = ""
         box = self.query_one(f".{self.button_id_prefix}_input")
         box.value = ""
-        return
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if not event.button.id or not event.button.id.startswith(self.button_id_prefix):
+            return
+        if event.button.id.startswith(f"{self.button_id_prefix}_remove"):
+            index = event.button.id.split("_")[-1]
+            if index in self._widgets:
+                self._widgets[index].remove()
+                del self._widgets[index]
+            return
+        self.append()
+
+    def on_input_submitted(self):
+        self.append()
 
 
 class ScreenLink(Static):
@@ -240,13 +283,14 @@ class KayakuScreen(Screen):
             ContainerTitle(Static(model.__name__, classes="kayaku-model-name"))
         ]
         type_hints = typing_extensions.get_type_hints(model, include_extras=True)
-        for field in dataclasses.fields(model):
+        for field in dataclasses.fields(model):  # noqa
             typ = type_hints[field.name]
             hint = (
                 f"{typ!r}"
                 if (typ_origin := typing_extensions.get_origin(typ))
                 else f"{typ.__name__}"
             )
+            child_type = child[0] if (child := typing_extensions.get_args(typ)) else typ
             docs = field.metadata.get("description", "")
             desc = cls.assemble_description(cls.is_required_field(field), docs, hint)
             if field.default == "":
@@ -257,7 +301,7 @@ class KayakuScreen(Screen):
                 default = field.default
             input_field = MutableInputField if typ_origin == list else InputField
             components.append(
-                input_field(model.__name__, f"{field.name}", str(default), desc)
+                input_field(model.__name__, f"{field.name}", str(default), desc, typ=child_type)
             )
         return cls(model, Header(), Body(quick_access, *components), Footer())
 
@@ -280,18 +324,30 @@ class QuickAccess(Container):
 
 
 class Notification(Static):
+    def __init__(self, *args, lifespan: int = 3, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lifespan = lifespan
+
     def on_mount(self) -> None:
-        self.set_timer(3, self.remove)
+        self.set_timer(self.lifespan, self.remove)
 
     def on_click(self) -> None:
         self.remove()
+
+
+class WarningBox(Notification):
+    pass
+
+
+class ErrorBox(Notification):
+    pass
 
 
 quick_access = QuickAccess()
 
 
 class EricTUI(App):
-    CSS_PATH = "../textual.css"
+    CSS_PATH = "./textual.css"
     TITLE = "Eric 配置"
     BINDINGS = [
         Binding("ctrl+c", "quit", "退出", priority=True),
@@ -328,7 +384,7 @@ class EricTUI(App):
 
 
 def mount_screens(__app):
-    from kayaku.domain import _store
+    from kayaku.domain import _store  # noqa
 
     installed = []
     quick_access.mount(Static("快速访问", classes="quick-access-panel"))
@@ -345,5 +401,4 @@ def mount_screens(__app):
 
 if __name__ == "__main__":
     app = EricTUI()
-    # TUI_APP.set(app)
     app.run()

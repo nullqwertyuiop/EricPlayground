@@ -1,0 +1,170 @@
+MessageBox {
+    background: $boost;
+    height: auto;
+    max-width: 100;
+    min-width: 40;
+    border: wide $primary;
+    padding: 1 2;
+    margin: 1 2;
+    box-sizing: border-box;
+}
+
+MessageBox Button {
+    width: 100%;
+    margin-top: 1;
+}
+
+FallbackContainer {
+    background: $boost;
+    height: auto;
+    max-width: 100;
+    min-width: 40;
+    border: wide $primary;
+    padding: 1 2;
+    margin: 1 2;
+    box-sizing: border-box;
+}
+
+FallbackContainer Button {
+    width: 100%;
+    margin-top: 1;
+}
+
+Center {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+}
+
+ContainerTitle {
+    margin: 1 0 0 0;
+    height: auto;
+    width: 100%;
+}
+
+Welcome Button {
+    width: 100%;
+    margin-top: 1;
+}
+
+Body {
+    height: 100%;
+    overflow-y: scroll;
+    width: 100%;
+    background: $surface;
+}
+
+Column {
+    height: auto;
+    min-height: 100vh;
+    align: center top;
+}
+
+InputField {
+    height: auto;
+    margin: 0 2;
+    padding: 1 2;
+    background: $boost;
+    border: wide $background;
+}
+
+InputField .description {
+    margin: 1 0 0 0;
+    text-align: center;
+}
+
+InputPair {
+    height: auto;
+    layout: grid;
+    grid-size: 2;
+    grid-rows: 4;
+    grid-columns: 12 1fr;
+}
+
+InputPair .label {
+    padding: 1 2;
+    text-align: right;
+}
+
+FrozenInput {
+    background: $boost;
+    color: $text;
+    padding: 0 2;
+    border: tall $background;
+    width: 100%;
+    height: 1;
+    min-height: 1;
+}
+
+MutableInputField {
+    height: auto;
+    margin: 0 2;
+    padding: 1 2;
+    background: $boost;
+    border: wide $background;
+}
+
+MutableInputField .description {
+    margin: 1 0 0 0;
+    text-align: center;
+}
+
+MutableInputPair {
+    height: auto;
+    layout: grid;
+    grid-size: 3;
+    grid-rows: 4;
+    grid-columns: 12 1fr 5;
+}
+
+MutableInputPair .label {
+    padding: 1 2;
+    text-align: right;
+}
+
+QuickAccess {
+    width: 30%;
+    max-width: 30;
+    dock: left;
+
+}
+
+ScreenLink {
+    margin: 1 0 0 1;
+    height: 1;
+    padding: 1 2;
+    background: $boost;
+    color: $text;
+    box-sizing: content-box;
+    content-align: center middle;
+}
+
+ScreenLink:hover {
+    background: $accent;
+    color: $text;
+    text-style: bold;
+}
+
+.kayaku-model-name {
+    text-align: center;
+}
+
+.quick-access-panel {
+    margin: 1 0 0 0;
+    text-align: center;
+}
+
+Notification {
+    dock: bottom;
+    layer: notification;
+    width: auto;
+    margin: 2 2;
+    padding: 1 2;
+    background: $background;
+    color: $text;
+    height: auto;
+}
+
+._margin-top {
+    margin-top: 1;
+}
